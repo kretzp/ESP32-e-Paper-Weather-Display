@@ -28,6 +28,9 @@
 #include <GxEPD2_3C.h>
 #include <U8g2_for_Adafruit_GFX.h>
 #include "forecast_record.h"
+
+#include "openhab.h"
+
 //#include "lang.h"                   // Localisation (English)
 //#include "lang_cz.h"                // Localisation (Czech)
 //#include "lang_fr.h"                // Localisation (French)
@@ -115,6 +118,13 @@ long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute
 int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
 int  SleepTime     = 23; // Sleep after (23+1) 00:00 to save battery power
 
+String pressure;
+String temperature;
+String poolTemperature;
+String poolPumpe;
+String pH;
+String humidity;
+
 //#########################################################################################
 void setup() {
   StartTime = millis();
@@ -125,6 +135,9 @@ void setup() {
       byte Attempts = 1;
       bool RxWeather = false, RxForecast = false;
       WiFiClient client;   // wifi client object
+
+      getOpenhabValues(client);
+      
       while ((RxWeather == false || RxForecast == false) && Attempts <= 5) { // Try up-to 2 time for Weather and Forecast data
         if (RxWeather  == false) RxWeather  = obtain_wx_data(client, "weather");
         if (RxForecast == false) RxForecast = obtain_wx_data(client, "forecast");
@@ -161,13 +174,14 @@ void DisplayWeather() {             // 2.7" e-paper display is 264x175 resolutio
   UpdateLocalTime();
   Draw_Heading_Section();           // Top line of the display
   Draw_Main_Weather_Section();      // Centre section of display for Location, temperature, Weather report, Wx Symbol and wind direction
-  Draw_3hr_Forecast(0, 102, 1);    // First  3hr forecast box
+  Draw_3hr_Forecast(0, 102, 1);     // First  3hr forecast box
   Draw_3hr_Forecast(44, 102, 2);    // Second 3hr forecast box
-  Draw_3hr_Forecast(88, 102, 3);   // Third  3hr forecast box
+  Draw_3hr_Forecast(88, 102, 3);    // Third  3hr forecast box
   Draw_3hr_Forecast(132, 102, 4);   // Fourth  3hr forecast box
   Draw_3hr_Forecast(176, 102, 5);   // Fifth 3hr forecast box
   Draw_3hr_Forecast(220, 102, 6);   // Fifth 3hr forecast box
-  DisplayAstronomySection(0, 117); // Astronomy section Sun rise/set and Moon phase plus icon
+  DisplayAstronomySection(0, 117);  // Astronomy section Sun rise/set and Moon phase plus icon
+  DrawOpenhabItems(160, 117);       // OpenhabItems
   if (WxConditions[0].Visibility > 0) Visibility(110, 40, String(WxConditions[0].Visibility) + "M");
   if (WxConditions[0].Cloudcover > 0) CloudCover(110, 55, WxConditions[0].Cloudcover);
   DrawBattery(55, 12);
@@ -801,6 +815,45 @@ void InitialiseDisplay() {
   display.fillScreen(GxEPD_WHITE);
   display.setFullWindow();
   Serial.println("... End InitialiseDisplay");
+}
+
+void getOpenhabValues(WiFiClient& client) {
+   // Luftdruck
+   if(!obtain_openhab_data(client, "/rest/items/Barometer/state", pressure)) {
+     Serial.println(";-)");
+   }
+
+   // Temperatur
+   if(!obtain_openhab_data(client, "/rest/items/Controme_Proxy_Aussen_Aussentemperatur/state", temperature)) {
+    Serial.println(";-)");
+   }
+
+   // Pool
+   if(!obtain_openhab_data(client, "/rest/items/poolTemp/state", poolTemperature)) {
+     Serial.println(";-)");
+   }
+
+   // Poolpumpe
+   if(!obtain_openhab_data(client, "/rest/items/poolPumpe/state", poolPumpe)) {
+     Serial.println(";-)");
+   }
+
+   // Poolpumpe
+   if(!obtain_openhab_data(client, "/rest/items/PH/state", pH)) {
+     Serial.println(";-)");
+   }
+
+   // Luftfeuchtigkeit
+   if(!obtain_openhab_data(client, "/rest/items/terasse_Humidity/state", humidity)) {
+     Serial.println(";-)");
+   }
+}
+
+void DrawOpenhabItems(int x, int y) {
+  u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+  drawString(x, y + 18, temperature + "° / " + humidity + "%", LEFT);
+  drawString(x, y + 34, pressure + "hPa        pH " + pH, LEFT);
+  drawString(x, y + 50, "Pool " + poolTemperature + "°   " + poolPumpe, LEFT);
 }
 
 /*
